@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using KioskControl.Models;
 namespace KioskControl.Services;
 public sealed class LauncherService
