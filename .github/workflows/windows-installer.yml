@@ -1,0 +1,46 @@
+name: Build Windows installer
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Restore
+        run: dotnet restore KioskControl/KioskControl.csproj
+      - name: Publish self-contained Windows app
+        run: dotnet publish KioskControl/KioskControl.csproj -c Release -r win-x64 --self-contained true -o publish
+      - name: Install Inno Setup
+        run: choco install innosetup --yes --no-progress
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $version = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}".TrimStart("v") } else { "0.1.0" }
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DMyAppVersion=$version" installer/KioskControl.iss
+          if (!(Test-Path "installer/output/KioskControl-Setup.exe")) { throw "Installer was not produced." }
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: KioskControl-Windows-Installer
+          path: installer/output/KioskControl-Setup.exe
+          if-no-files-found: error
+      - name: Publish GitHub Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: KioskControl ${{ github.ref_name }}
+          generate_release_notes: true
+          files: installer/output/KioskControl-Setup.exe
